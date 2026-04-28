@@ -33,7 +33,7 @@ Follow these steps to run the project locally:
 
 ### 1. Clone the Repository
 ```bash
-git clone <your-repository-url>
+git clone <https://github.com/kishuvansh/SmartTrip>
 cd Orbit-main
 ```
 
