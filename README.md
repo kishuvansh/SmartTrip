@@ -1,6 +1,6 @@
 # SmartTrip - Dynamic Travel Orchestration
 
-Orbit is an AI-powered travel planning application that transforms natural language queries into comprehensive, dynamic travel itineraries. By leveraging advanced AI models and interactive mapping, Orbit provides an end-to-end, intent-first travel planning experience.
+SmartTrip is an AI-powered travel planning application that transforms natural language queries into comprehensive, dynamic travel itineraries. By leveraging advanced AI models and interactive mapping, Orbit provides an end-to-end, intent-first travel planning experience.
 
 ## ✨ Key Features
 
