@@ -1,0 +1,101 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Mail, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+
+export const ForgotPasswordPage: React.FC = () => {
+    const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [message, setMessage] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const handleReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setErrorMsg('');
+        setMessage('');
+        setLoading(true);
+
+        try {
+            await sendPasswordResetEmail(auth, email);
+            setMessage("Password reset token dispatched to your email.");
+        } catch (error: any) {
+            setErrorMsg(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="h-screen w-full bg-[#00050A] flex items-center justify-center relative overflow-hidden font-sans">
+            <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orbit-900/40 to-[#00050A]" />
+            <div className="absolute inset-0 opacity-[0.02] bg-noise" />
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="relative z-10 w-full max-w-sm"
+            >
+                <div className="bg-[#0A0F1C]/80 backdrop-blur-xl rounded-none border border-white/10 p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent-500 to-transparent opacity-50" />
+
+                    <div className="flex flex-col items-center mb-10">
+                        <div className="p-3 bg-white/5 rounded-full mb-4 border border-white/5">
+                            <ShieldAlert size={24} className="text-white/80" />
+                        </div>
+                        <h2 className="text-xl font-display font-medium text-white tracking-widest uppercase">Recovery Protocol</h2>
+                    </div>
+
+                    {errorMsg && (
+                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-sm text-red-400 text-xs text-center">
+                            {errorMsg}
+                        </div>
+                    )}
+                    {message && (
+                        <div className="mb-4 p-3 bg-green-500/10 border border-green-500/50 rounded-sm text-green-400 text-xs text-center">
+                            {message}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleReset} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-mono font-bold text-orbit-500 uppercase tracking-widest ml-1">Registered Email</label>
+                            <div className="relative group">
+                                <Mail className="absolute left-4 top-3.5 text-orbit-500 group-focus-within:text-white transition-colors" size={16} />
+                                <input
+                                    type="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="name@orbit.travel"
+                                    className="w-full bg-[#050A10] border border-white/10 rounded-sm px-12 py-3 text-white text-sm focus:outline-none focus:border-accent-500/50 focus:bg-[#0A0F1C] transition-all font-mono placeholder:text-orbit-700"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading || !!message}
+                            className="w-full bg-white text-black hover:bg-orbit-200 font-bold py-3.5 rounded-sm transition-all flex items-center justify-center gap-2 mt-8 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider text-xs"
+                        >
+                            {loading ? (
+                                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                            ) : (
+                                <span>Dispatch Token</span>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-6 text-center">
+                        <Link to="/login" className="flex items-center justify-center gap-2 text-xs text-orbit-400 hover:text-white transition-colors">
+                            <ArrowLeft size={14} />
+                            <span>Abort Recovery</span>
+                        </Link>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+};

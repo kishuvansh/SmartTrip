@@ -8,8 +8,12 @@ import type { ChatMessage, FlightOption, HotelOption, PlanEvent } from '../../da
 import { generateChatResponse, generateFlights, generateHotels, generateItinerary, extractTravelContext } from '../../lib/ai';
 import type { AIChatMessage } from '../../lib/ai';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTrips } from '../../hooks/useTrips';
 
 export const OrbitDashboard = () => {
+    const { saveTrip } = useTrips();
+    const [isSavingTrip, setIsSavingTrip] = useState(false);
+
     // Chat & Conversation State
     const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
     const [isThinking, setIsThinking] = useState(false);
@@ -203,6 +207,27 @@ export const OrbitDashboard = () => {
         }
     };
 
+    const handleSaveTrip = async () => {
+        setIsSavingTrip(true);
+        try {
+            await saveTrip({
+                destination: travelContext.destination || 'Unknown Destination',
+                origin: travelContext.origin || 'Unknown Origin',
+                dates: travelContext.dates || 'Unknown Dates',
+                itineraryJson: itinerary,
+                selectedFlight: selectedFlight || undefined,
+                selectedHotel: selectedHotel || undefined
+            });
+            // Show some success feedback?
+            alert("Trip saved successfully!");
+        } catch (error) {
+            console.error("Failed to save trip", error);
+            alert("Failed to save trip");
+        } finally {
+            setIsSavingTrip(false);
+        }
+    };
+
     const handleSwapTrigger = async (_id: string) => {
         const userMsg: ChatMessage = {
             id: Date.now().toString(),
@@ -286,10 +311,21 @@ export const OrbitDashboard = () => {
                                             {totalDays} Days • {selectedFlight?.airline} + {selectedHotel?.name}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <div className="px-3 py-1 rounded-full bg-accent-500/20 text-accent-400 border border-accent-500/50 text-sm font-medium">
+                                    <div className="flex gap-3 items-center">
+                                        <div className="px-3 py-1.5 rounded-full bg-accent-500/20 text-accent-400 border border-accent-500/50 text-sm font-medium">
                                             AI-Generated Plan
                                         </div>
+                                        <button
+                                            onClick={handleSaveTrip}
+                                            disabled={isSavingTrip}
+                                            className="bg-white text-black hover:bg-orbit-200 font-bold py-1.5 px-4 rounded-full transition-all flex items-center gap-2 disabled:opacity-50 text-sm shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                                        >
+                                            {isSavingTrip ? (
+                                                <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                            ) : (
+                                                <span>Save Trip</span>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
 

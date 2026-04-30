@@ -8,7 +8,7 @@ interface IsometricMapProps {
 }
 
 export const IsometricMap: React.FC<IsometricMapProps> = ({ events, currentDay }) => {
-    const nodes = events.filter(e => e.coordinates);
+    const nodes = events.filter((e): e is PlanEvent & { coordinates: { x: number; y: number } } => !!e.coordinates);
 
     return (
         <div className="w-full h-[400px] relative overflow-hidden rounded-xl border border-orbit-700/50 bg-orbit-900/40 backdrop-blur-sm group perspective-[1000px]">
@@ -31,8 +31,8 @@ export const IsometricMap: React.FC<IsometricMapProps> = ({ events, currentDay }
                 {/* Pylons (Nodes) */}
                 {nodes.map((node, index) => {
                     // Convert % coordinates to approximate grid positions (0-1000)
-                    const top = (node.coordinates!.y / 100) * 800 + 100;
-                    const left = (node.coordinates!.x / 100) * 800 + 100;
+                    const top = (node.coordinates.y / 100) * 800 + 100;
+                    const left = (node.coordinates.x / 100) * 800 + 100;
 
                     return (
                         <motion.div
@@ -68,9 +68,8 @@ export const IsometricMap: React.FC<IsometricMapProps> = ({ events, currentDay }
                 {/* Connected Path (Simple Line on Floor) */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible opacity-50">
                     <motion.path
-                        d={`M ${nodes.map(n => {
-                            const top = (n.coordinates!.y / 100) * 800 + 100;
-                            const left = (n.coordinates!.x / 100) * 800 + 100;
+                            const top = (n.coordinates.y / 100) * 800 + 100;
+                            const left = (n.coordinates.x / 100) * 800 + 100;
                             return `${left},${top}`;
                         }).join(' L ')}`}
                         fill="none"
