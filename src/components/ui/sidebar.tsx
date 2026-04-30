@@ -36,7 +36,7 @@ export const Sidebar: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center border border-accent-500/50 flex-shrink-0">
                         <div className="w-4 h-4 bg-accent-500 rounded-full animate-pulse shadow-[0_0_10px_theme('colors.accent.500')]" />
                     </div>
-                    <h1 className="font-display font-bold text-xl tracking-wide hidden lg:block md:hidden">Orbit</h1>
+                    <h1 className="font-display font-bold text-xl tracking-wide hidden lg:block md:hidden">SmartTrip</h1>
                 </div>
             </div>
 

@@ -47,7 +47,7 @@ export const INITIAL_CHAT: ChatMessage[] = [
     {
         id: '1',
         sender: 'ai',
-        text: "Hello! I'm Orbit. Where are we flying today?",
+        text: "Hello! I'm SmartTrip. Where are we flying today?",
         timestamp: 'Now'
     }
 ];

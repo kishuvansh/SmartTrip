@@ -39,7 +39,7 @@ const callGroq = async (messages: AIChatMessage[], isJson: boolean = false): Pro
 export const generateChatResponse = async (messages: AIChatMessage[]): Promise<{ text: string; action: string }> => {
   const systemPrompt: AIChatMessage = {
     role: 'system',
-    content: `You are Orbit, a futuristic AI travel assistant. Be short, punchy, and cool.
+    content: `You are SmartTrip, a futuristic AI travel assistant. Be short, punchy, and cool.
 Your job is to gather: destination, origin city, travel dates, number of travelers, and trip vibe.
 Ask for ONE piece of info at a time. Don't repeat questions already answered.
 

@@ -80,7 +80,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSearch }) => {
                         <span className="text-[10px] font-mono uppercase tracking-[0.3em]">System Online</span>
                     </div>
                     <h1 className="text-6xl md:text-8xl font-display font-medium text-white tracking-[0.05em] uppercase mix-blend-screen drop-shadow-glow">
-                        Orbit
+                        SmartTrip
                     </h1>
                     <div className="h-px w-32 bg-gradient-to-r from-transparent via-accent-500 to-transparent mx-auto mt-6" />
                     <p className="text-text-secondary text-sm md:text-base font-mono mt-6 tracking-widest uppercase opacity-70">

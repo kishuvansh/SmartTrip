@@ -132,7 +132,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask Orbit anything..."
+                        placeholder="Ask SmartTrip anything..."
                         className="w-full bg-orbit-950 border border-orbit-700 text-text-primary rounded-xl px-4 py-3.5 pr-12 focus:outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/50 transition-all placeholder:text-text-muted text-sm shadow-inner"
                     />
                     <Button
