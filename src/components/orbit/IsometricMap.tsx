@@ -68,13 +68,14 @@ export const IsometricMap: React.FC<IsometricMapProps> = ({ events, currentDay }
                 {/* Connected Path (Simple Line on Floor) */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible opacity-50">
                     <motion.path
+                        d={nodes.map((n) => {
                             const top = (n.coordinates.y / 100) * 800 + 100;
                             const left = (n.coordinates.x / 100) * 800 + 100;
                             return `${left},${top}`;
-                        }).join(' L ')}`}
+                        }).join(' L ')}
                         fill="none"
                         stroke="url(#iso-gradient)"
-                        strokeWidth="4"
+                        strokeWidth={4}
                         strokeDasharray="10 10"
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
