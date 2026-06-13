@@ -66,7 +66,7 @@ export const MapView: React.FC<MapViewProps> = ({ events, currentDay }) => {
                 {/* Animated Flight Path */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
                     <motion.path
-                        d={`M ${nodes.map(n => `${n.coordinates.x * 10},${n.coordinates.y * 4}`).join(' L ')}`} // Simple scaler for SVG space
+                        d={`M ${nodes.map(n => `${(n.coordinates.x ?? 0) * 10},${(n.coordinates.y ?? 0) * 4}`).join(' L ')}`} // Simple scaler for SVG space
                         fill="none"
                         stroke="url(#gradient-line)"
                         strokeWidth="2"

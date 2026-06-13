@@ -17,26 +17,26 @@ SmartTrip is an AI-powered travel planning application that transforms natural l
 
 ```text
 SmartTrip/
-├── public/                 # Static assets (images, icons)
-├── server/                 # Backend Node.js/Express server
+├── backend/                # Backend Node.js/Express server
 │   ├── config/             # Database (MongoDB) and Firebase Admin configurations
 │   ├── controllers/        # Request handlers for routes
 │   ├── middleware/         # Auth, validation, and rate-limiting middlewares
 │   ├── models/             # Mongoose schemas for Users, Trips, and Preferences
 │   ├── routes/             # API route definitions
-│   └── index.ts            # Express server entry point
-├── src/                    # Frontend React application
-│   ├── assets/             # Styles and SVGs
-│   ├── components/         # Reusable UI (Radix/Shadcn) and Orbit-specific components
-│   ├── data/               # Mock data and static constants
-│   ├── hooks/              # Custom React hooks (useTrips, useProfile, etc.)
-│   ├── lib/                # Core logic (AI integration, Firebase, Maps, API clients)
-│   ├── router/             # React Router configuration and Protected Routes
-│   ├── store/              # Global state management using Zustand
-│   ├── types/              # TypeScript interfaces and type definitions
-│   └── App.tsx             # Main application layout and logic
-├── package.json            # Frontend dependencies and scripts
-└── vite.config.ts          # Vite configuration
+│   ├── index.ts            # Express server entry point
+│   ├── package.json        # Backend package configuration
+│   └── .env                # Backend local environment variables
+├── frontend/               # Frontend React application
+│   ├── public/             # Static assets (images, icons)
+│   ├── src/                # Frontend source code
+│   │   ├── components/     # Reusable UI components
+│   │   ├── lib/            # API clients, Firebase connection, Map utils
+│   │   └── App.tsx         # Main frontend entry component
+│   ├── package.json        # Frontend package configuration
+│   ├── vite.config.ts      # Vite build configuration
+│   └── .env                # Frontend local environment variables
+├── .gitignore              # Main gitignore
+└── README.md               # Project documentation
 ```
 
 ## 🛠️ Technology Stack
@@ -66,13 +66,10 @@ cd Orbit-main
 
 ### 2. Frontend Setup
 ```bash
+cd frontend
+
 # Install dependencies
 npm install
-
-# Create .env file
-# VITE_GROQ_API_KEY=your_groq_api_key
-# VITE_MAP_API_KEY=your_map_api_key
-# VITE_FIREBASE_API_KEY=your_firebase_key
 
 # Start development server
 npm run dev
@@ -80,15 +77,10 @@ npm run dev
 
 ### 3. Backend Setup
 ```bash
-cd server
+cd backend
 
 # Install dependencies
 npm install
-
-# Create .env file
-# MONGO_URI=your_mongodb_uri
-# FIREBASE_SERVICE_ACCOUNT_KEY=path_to_json
-# CLOUDINARY_CLOUD_NAME=your_name
 
 # Start backend server
 npm run dev
@@ -96,8 +88,7 @@ npm run dev
 
 ## 📜 Scripts
 
-- `npm run dev`: Starts the local development server (Vite).
-- `npm run build`: Builds the application for production.
-- `npm run lint`: Lints the codebase.
-- `server: npm run dev`: Starts the backend development server with ts-node-dev.
+For both Frontend and Backend, standard NPM scripts are available inside their respective directories:
+- `npm run dev`: Starts the local development server (Vite for frontend, ts-node-dev for backend).
+- `npm run build`: Compiles/builds the project (Vite build for frontend, tsc compilation for backend).
 
