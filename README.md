@@ -2,7 +2,7 @@
 
 SmartTrip is an AI-powered travel planning application that transforms natural language queries into comprehensive, dynamic travel itineraries. By leveraging advanced AI models, interactive mapping, and a robust backend, SmartTrip provides an end-to-end, intent-first travel planning experience.
 
-## ✨ Key Features
+##  Key Features
 
 - **AI-Driven Travel Context Extraction:** A smart chatbot interface that understands user travel intent from natural language queries using Groq API.
 - **Real-Time Option Generation:** Dynamically generates flight and hotel options based on user preferences.
