@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getTrips, createTrip, getTripById, toggleFavorite, deleteTrip } from '../controllers/tripsController';
+import { getTrips, createTrip, getTripById, toggleFavorite, deleteTrip, getActiveTrip, upsertActiveTrip, deleteActiveTrip } from '../controllers/tripsController';
 import { verifyToken } from '../middleware/auth';
 import { validateRequest } from '../middleware/validate';
 import { body } from 'express-validator';
@@ -7,6 +7,10 @@ import { body } from 'express-validator';
 const router = Router();
 
 router.use(verifyToken);
+
+router.get('/active', getActiveTrip);
+router.put('/active', upsertActiveTrip);
+router.delete('/active', deleteActiveTrip);
 
 router.get('/', getTrips);
 

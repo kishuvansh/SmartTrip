@@ -8,6 +8,7 @@ import { connectDB } from './config/db';
 import profileRoutes from './routes/profile';
 import preferencesRoutes from './routes/preferences';
 import tripsRoutes from './routes/trips';
+import aiRoutes from './routes/ai';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -53,15 +54,20 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Basic route
+// Basic route & Health Check
 app.get('/', (req, res) => {
   res.send('Orbit API is running');
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Routes
 app.use('/api/profile', profileRoutes);
 app.use('/api/preferences', preferencesRoutes);
 app.use('/api/trips', tripsRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error Handling Middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

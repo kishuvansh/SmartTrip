@@ -36,5 +36,5 @@ export const getMapStyleUrl = () => {
     return `https://api.maptiler.com/maps/streets-v2/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL`; // MapTiler standard demo key
   }
   // Use a dark map style to match Orbit's theme
-  return `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${apiKey}`;
+  return `https://api.maptiler.com/maps/dataviz-light/style.json?key=${apiKey}`;
 };

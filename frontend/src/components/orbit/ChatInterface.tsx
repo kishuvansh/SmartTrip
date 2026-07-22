@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Sparkles, Plane, Building2 } from 'lucide-react';
+import { Send, Sparkles, Plane, Building2, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import type { ChatMessage, FlightOption, HotelOption } from '../../data/mocks';
 import { cn } from '../../lib/utils';
@@ -11,6 +11,7 @@ interface ChatInterfaceProps {
     thinkingText?: string;
     onSendMessage: (text: string) => void;
     onSelectOption: (optionId: string, type: 'flight' | 'hotel') => void;
+    onNewTrip?: () => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -18,7 +19,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     isThinking,
     thinkingText,
     onSendMessage,
-    onSelectOption
+    onSelectOption,
+    onNewTrip
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,6 +40,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     return (
         <div className="flex flex-col h-full">
+            {/* Chat Panel Header */}
+            <div className="px-4 py-3 border-b border-orbit-700/70 bg-orbit-900/90 backdrop-blur-md flex items-center justify-between z-20 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-accent-500 animate-pulse shadow-[0_0_8px_theme('colors.accent.500')]" />
+                    <span className="text-xs font-mono font-semibold text-text-primary tracking-wider uppercase">SmartTrip AI</span>
+                </div>
+                {onNewTrip && (
+                    <button
+                        onClick={onNewTrip}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-500/15 hover:bg-accent-500/25 border border-accent-500/40 text-accent-400 text-xs font-mono font-medium transition-all shadow-[0_0_10px_rgba(59,130,246,0.15)] group"
+                        title="Start a new trip session"
+                    >
+                        <Plus size={14} className="group-hover:rotate-90 transition-transform duration-300" />
+                        <span>New Trip</span>
+                    </button>
+                )}
+            </div>
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide" ref={scrollRef}>
                 {messages.map((msg) => (

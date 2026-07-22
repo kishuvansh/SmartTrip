@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Map, PlaneTakeoff, Settings, User as UserIcon, LogOut, Menu, X } from 'lucide-react';
+import { Map, PlaneTakeoff, Settings, User as UserIcon, LogOut, Menu, X, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
+import { useTripStore } from '../../store/tripStore';
 import { useProfile } from '../../hooks/useProfile';
 import { auth } from '../../lib/firebase';
 
 export const Sidebar: React.FC = () => {
     const { user } = useAuthStore();
     const { profile } = useProfile();
+    const { triggerNewTripFlow } = useTripStore();
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
 
@@ -19,6 +21,11 @@ export const Sidebar: React.FC = () => {
         } catch (error) {
             console.error("Logout failed", error);
         }
+    };
+
+    const handleNewTripClick = () => {
+        setIsOpen(false);
+        triggerNewTripFlow();
     };
 
     const navItems = [
@@ -42,6 +49,17 @@ export const Sidebar: React.FC = () => {
 
             {/* Nav Links */}
             <nav className="flex-1 overflow-y-auto py-6 flex flex-col gap-2 px-3">
+                {/* New Trip Button */}
+                <button
+                    onClick={handleNewTripClick}
+                    className="w-full flex items-center justify-center lg:justify-start gap-3 px-3 py-3 mb-3 bg-accent-500/15 hover:bg-accent-500/25 text-accent-400 border border-accent-500/40 rounded-xl transition-all font-medium text-xs shadow-[0_0_12px_rgba(59,130,246,0.15)] group"
+                    title="Start a new trip"
+                >
+                    <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300 flex-shrink-0 text-accent-400" />
+                    <span className="font-mono uppercase tracking-wider hidden lg:block md:hidden font-semibold">
+                        New Trip
+                    </span>
+                </button>
                 {navItems.map(item => (
                     <NavLink
                         key={item.path}

@@ -78,12 +78,49 @@ export const CityMap: React.FC<CityMapProps> = ({ events, currentDay }) => {
         // Wait for map to load before adding markers
         const addMarkers = () => {
             const bounds = new maplibregl.LngLatBounds();
-
-            nodes.forEach((node) => {
-                if (!node.coordinates) return;
-                const lngLat = getLngLat(node.coordinates);
+            const DAY_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#a855f7', '#f97316', '#06b6d4', '#ec4899'];
+            
+            // 1. Group by proximity to detect overlaps
+            const groups: { [key: string]: { node: PlanEvent, lngLat: [number, number], original: [number, number] }[] } = {};
+            nodes.forEach(node => {
+                const lngLat = getLngLat(node.coordinates!);
                 if (!lngLat) return;
+                // Grid grouping by ~100m buckets to find overlaps
+                const gridX = Math.round(lngLat[0] * 1000);
+                const gridY = Math.round(lngLat[1] * 1000);
+                const key = `${gridX}-${gridY}`;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push({ node, lngLat: [...lngLat] as [number, number], original: [...lngLat] as [number, number] });
+            });
 
+            // 2. Apply offsets
+            Object.values(groups).forEach(group => {
+                const count = group.length;
+                group.forEach((item, index) => {
+                    if (count > 1) {
+                        // Offset in a circle
+                        const angle = (index / count) * Math.PI * 2;
+                        const radius = 0.0005; // ~50 meters
+                        item.lngLat[0] += Math.cos(angle) * radius;
+                        item.lngLat[1] += Math.sin(angle) * radius;
+                    }
+                });
+            });
+
+            // Reconstruct the ordered array for routes and markers
+            const processedNodes = nodes.map(node => {
+                let foundItem;
+                for (const group of Object.values(groups)) {
+                    foundItem = group.find(g => g.node.id === node.id);
+                    if (foundItem) break;
+                }
+                return foundItem;
+            }).filter(Boolean) as { node: PlanEvent, lngLat: [number, number], original: [number, number] }[];
+
+            const routeCoords: [number, number][] = [];
+
+            processedNodes.forEach(({ node, lngLat }) => {
+                routeCoords.push(lngLat); // Draw line to the offset rendered spot
                 bounds.extend(lngLat);
 
                 // Create styled marker element
@@ -121,10 +158,40 @@ export const CityMap: React.FC<CityMapProps> = ({ events, currentDay }) => {
                 markers.current.push(marker);
             });
 
-            if (nodes.length > 1) {
-                currentMap.fitBounds(bounds, { padding: 60, duration: 1200 });
+            // 3. Draw route line
+            if (currentMap.getSource('route')) {
+                (currentMap.getSource('route') as maplibregl.GeoJSONSource).setData({
+                    type: 'Feature',
+                    properties: {},
+                    geometry: { type: 'LineString', coordinates: routeCoords }
+                });
+                currentMap.setPaintProperty('route', 'line-color', DAY_COLORS[(currentDay - 1) % DAY_COLORS.length]);
             } else {
-                currentMap.flyTo({ center: firstCoords, zoom: 13, duration: 1000 });
+                currentMap.addSource('route', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: { type: 'LineString', coordinates: routeCoords }
+                    }
+                });
+                currentMap.addLayer({
+                    id: 'route',
+                    type: 'line',
+                    source: 'route',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: {
+                        'line-color': DAY_COLORS[(currentDay - 1) % DAY_COLORS.length],
+                        'line-width': 4,
+                        'line-dasharray': [2, 2]
+                    }
+                });
+            }
+
+            if (processedNodes.length > 1) {
+                currentMap.fitBounds(bounds, { padding: 60, duration: 1200 });
+            } else if (processedNodes.length === 1) {
+                currentMap.flyTo({ center: processedNodes[0].lngLat, zoom: 13, duration: 1000 });
             }
         };
 

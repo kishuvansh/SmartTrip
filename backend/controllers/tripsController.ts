@@ -6,7 +6,7 @@ import { User } from '../models/User';
 export const getTrips = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const firebaseUid = req.user?.uid;
-    const trips = await Trip.find({ firebaseUid }).sort({ createdAt: -1 });
+    const trips = await Trip.find({ firebaseUid, status: { $ne: 'active' } }).sort({ createdAt: -1 });
     res.json(trips);
   } catch (error) {
     console.error('Error fetching trips:', error);
@@ -34,7 +34,8 @@ export const createTrip = async (req: AuthRequest, res: Response): Promise<void>
       dates,
       itineraryJson,
       selectedFlight,
-      selectedHotel
+      selectedHotel,
+      status: 'generated'
     });
 
     res.status(201).json(newTrip);
@@ -95,5 +96,66 @@ export const deleteTrip = async (req: AuthRequest, res: Response): Promise<void>
     } catch (error) {
         console.error('Error deleting trip:', error);
         res.status(500).json({ message: 'Server error deleting trip' });
+    }
+};
+
+export const getActiveTrip = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+        
+        const activeTrip = await Trip.findOne({ firebaseUid, status: 'active' });
+        res.json(activeTrip); // returns null if not found, which is what we want
+    } catch (error) {
+        console.error('Error fetching active trip:', error);
+        res.status(500).json({ message: 'Server error fetching active trip' });
+    }
+};
+
+export const upsertActiveTrip = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const firebaseUid = req.user?.uid;
+        const user = await User.findOne({ firebaseUid });
+        
+        if (!user || !firebaseUid) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        const payload = req.body;
+        // Ensure status is always active for this session trip
+        payload.status = 'active';
+
+        const updatedTrip = await Trip.findOneAndUpdate(
+            { firebaseUid, status: 'active' },
+            { 
+                $set: payload,
+                $setOnInsert: { userId: user._id, firebaseUid } 
+            },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        res.json(updatedTrip);
+    } catch (error) {
+        console.error('Error upserting active trip:', error);
+        res.status(500).json({ message: 'Server error saving active trip' });
+    }
+};
+
+export const deleteActiveTrip = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const firebaseUid = req.user?.uid;
+        if (!firebaseUid) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+        await Trip.findOneAndDelete({ firebaseUid, status: 'active' });
+        res.json({ message: 'Active trip deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting active trip:', error);
+        res.status(500).json({ message: 'Server error deleting active trip' });
     }
 };

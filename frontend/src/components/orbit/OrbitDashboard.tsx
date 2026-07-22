@@ -1,47 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { OrbitLayout } from './OrbitLayout';
 import { ChatInterface } from './ChatInterface';
 import { CityMap } from './CityMap';
 import { Timeline } from './Timeline';
-import { INITIAL_CHAT } from '../../data/mocks';
-import type { ChatMessage, FlightOption, HotelOption, PlanEvent } from '../../data/mocks';
+import { NewTripModal } from './NewTripModal';
+import type { ChatMessage, FlightOption, HotelOption } from '../../data/mocks';
 import { generateChatResponse, generateFlights, generateHotels, generateItinerary, extractTravelContext } from '../../lib/ai';
 import type { AIChatMessage } from '../../lib/ai';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTrips } from '../../hooks/useTrips';
+import { useTripStore, flushActiveTripSave } from '../../store/tripStore';
 
 export const OrbitDashboard = () => {
     const { saveTrip } = useTrips();
-    const [isSavingTrip, setIsSavingTrip] = useState(false);
+    const [isSavingTripUI, setIsSavingTripUI] = useState(false);
 
-    // Chat & Conversation State
-    const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
-    const [isThinking, setIsThinking] = useState(false);
-    const [thinkingActivity, setThinkingActivity] = useState<string | undefined>(undefined);
+    const {
+        messages, setMessages,
+        isThinking, setIsThinking,
+        thinkingActivity, setThinkingActivity,
+        currentDay, setCurrentDay,
+        isGeneratingPlan, setIsGeneratingPlan,
+        dynamicFlights, setDynamicFlights,
+        dynamicHotels, setDynamicHotels,
+        itinerary, setItinerary,
+        selectedFlight, setSelectedFlight,
+        selectedHotel, setSelectedHotel,
+        travelContext, setTravelContext,
+        isLoadingSession, loadActiveTrip, clearLocalSession,
+        triggerNewTripFlow
+    } = useTripStore();
 
-    // App State
-    const [currentDay, setCurrentDay] = useState(1);
-    const [showDashboard, setShowDashboard] = useState(false);
-    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-
-    // Dynamic Data State (AI-generated, not mocks)
-    const [dynamicFlights, setDynamicFlights] = useState<FlightOption[]>([]);
-    const [dynamicHotels, setDynamicHotels] = useState<HotelOption[]>([]);
-    const [itinerary, setItinerary] = useState<Record<number, PlanEvent[]>>({});
-    const [selectedFlight, setSelectedFlight] = useState<FlightOption | null>(null);
-    const [selectedHotel, setSelectedHotel] = useState<HotelOption | null>(null);
-
-    // Travel context extracted from conversation
-    const [travelContext, setTravelContext] = useState({
-        origin: '',
-        destination: '',
-        dates: '',
-        vibe: '',
-    });
+    useEffect(() => {
+        loadActiveTrip();
+        return () => {
+            flushActiveTripSave();
+        };
+    }, []);
 
     // Computed
+    const showDashboard = Object.keys(itinerary).length > 0;
     const activePlan = showDashboard ? (itinerary[currentDay] || []) : [];
     const totalDays = Object.keys(itinerary).length || 4;
+
+    if (isLoadingSession) {
+        return (
+            <div className="h-screen w-full bg-[#00050A] flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-orbit-700 border-t-accent-500 rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     const addAIMessage = (text: string, options?: FlightOption[] | HotelOption[], optionType?: 'flight' | 'hotel') => {
         const msg: ChatMessage = {
@@ -96,6 +104,7 @@ export const OrbitDashboard = () => {
                         destination: ctx.destination || 'Goa',
                         dates: ctx.dates || 'Next week',
                         vibe: ctx.vibe || 'Relaxed',
+                        numDays: Math.min(ctx.numDays && ctx.numDays > 0 ? ctx.numDays : 3, 7),
                     });
 
                     // Now generate flights
@@ -172,7 +181,6 @@ export const OrbitDashboard = () => {
             const hotel = dynamicHotels.find(h => h.id === optionId);
             if (!hotel) { setIsThinking(false); return; }
 
-            // Capture selectedFlight from state before it could change
             const currentFlight = selectedFlight;
             setSelectedHotel(hotel);
             setThinkingActivity("Finalizing your perfect itinerary...");
@@ -182,7 +190,6 @@ export const OrbitDashboard = () => {
             setIsThinking(false);
             setThinkingActivity(undefined);
 
-            // Show loading animation, then generate itinerary
             setTimeout(async () => {
                 setIsGeneratingPlan(true);
 
@@ -192,12 +199,11 @@ export const OrbitDashboard = () => {
                         travelContext.destination || 'Goa',
                         currentFlight!,
                         hotel,
-                        4,
+                        travelContext.numDays || 3,
                         travelContext.vibe || 'Relaxed'
                     );
                     setItinerary(plan);
                     setIsGeneratingPlan(false);
-                    setShowDashboard(true);
                 } catch (err) {
                     console.error("Itinerary generation error:", err);
                     setIsGeneratingPlan(false);
@@ -208,7 +214,7 @@ export const OrbitDashboard = () => {
     };
 
     const handleSaveTrip = async () => {
-        setIsSavingTrip(true);
+        setIsSavingTripUI(true);
         try {
             await saveTrip({
                 destination: travelContext.destination || 'Unknown Destination',
@@ -218,13 +224,13 @@ export const OrbitDashboard = () => {
                 selectedFlight: selectedFlight || undefined,
                 selectedHotel: selectedHotel || undefined
             });
-            // Show some success feedback?
+            clearLocalSession();
             alert("Trip saved successfully!");
         } catch (error) {
             console.error("Failed to save trip", error);
             alert("Failed to save trip");
         } finally {
-            setIsSavingTrip(false);
+            setIsSavingTripUI(false);
         }
     };
 
@@ -257,110 +263,117 @@ export const OrbitDashboard = () => {
     };
 
     return (
-        <OrbitLayout
-            chatPanel={
-                <ChatInterface
-                    messages={messages}
-                    isThinking={isThinking}
-                    thinkingText={thinkingActivity}
-                    onSendMessage={handleSendMessage}
-                    onSelectOption={handleSelectOption}
-                />
-            }
-            dashboardPanel={
-                <div className="h-full p-6 md:p-10 overflow-y-auto relative">
-                    <AnimatePresence mode="wait">
-                        {isGeneratingPlan ? (
-                            <motion.div
-                                key="loader"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 flex flex-col items-center justify-center bg-orbit-950/80 backdrop-blur-sm z-50 text-center"
-                            >
-                                <div className="relative w-24 h-24 mb-8">
-                                    <div className="absolute inset-0 rounded-full border-2 border-orbit-700 opacity-20" />
-                                    <div className="absolute inset-0 rounded-full border-t-2 border-accent-500 animate-spin" />
-                                    <div className="absolute inset-4 rounded-full border-2 border-orbit-600 opacity-20" />
-                                    <div className="absolute inset-4 rounded-full border-r-2 border-accent-400 animate-spin-reverse-slow" />
-                                </div>
-                                <h3 className="text-xl font-display font-bold text-white tracking-widest uppercase animate-pulse">
-                                    Constructing Itinerary
-                                </h3>
-                                <div className="mt-4 flex flex-col gap-1 text-xs font-mono text-text-muted">
-                                    <span className="text-accent-400">&gt;&gt; Analyzing flight vectors...</span>
-                                    <span className="opacity-0 animate-fadeIn delay-700" style={{ animationDelay: '1s' }}>&gt;&gt; Locking hotel coordinates...</span>
-                                    <span className="opacity-0 animate-fadeIn delay-1000" style={{ animationDelay: '2s' }}>&gt;&gt; Synchronizing transit paths...</span>
-                                </div>
-                            </motion.div>
-                        ) : showDashboard ? (
-                            <motion.div
-                                key="dashboard"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.5 }}
-                                className="max-w-4xl mx-auto space-y-8"
-                            >
-                                {/* Dashboard Header */}
-                                <div className="flex justify-between items-end">
-                                    <div>
-                                        <h2 className="text-3xl font-display font-bold text-white mb-2">
-                                            Trip to {travelContext.destination || 'Your Destination'}
-                                        </h2>
-                                        <p className="text-text-secondary">
-                                            {totalDays} Days • {selectedFlight?.airline} + {selectedHotel?.name}
-                                        </p>
+        <>
+            <OrbitLayout
+                chatPanel={
+                    <ChatInterface
+                        messages={messages}
+                        isThinking={isThinking}
+                        thinkingText={thinkingActivity}
+                        onSendMessage={handleSendMessage}
+                        onSelectOption={handleSelectOption}
+                        onNewTrip={triggerNewTripFlow}
+                    />
+                }
+                dashboardPanel={
+                    <div className="h-full p-6 md:p-10 overflow-y-auto relative">
+                        <AnimatePresence mode="wait">
+                            {isGeneratingPlan ? (
+                                <motion.div
+                                    key="loader"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="absolute inset-0 flex flex-col items-center justify-center bg-orbit-950/80 backdrop-blur-sm z-50 text-center"
+                                >
+                                    <div className="relative w-24 h-24 mb-8">
+                                        <div className="absolute inset-0 rounded-full border-2 border-orbit-700 opacity-20" />
+                                        <div className="absolute inset-0 rounded-full border-t-2 border-accent-500 animate-spin" />
+                                        <div className="absolute inset-4 rounded-full border-2 border-orbit-600 opacity-20" />
+                                        <div className="absolute inset-4 rounded-full border-r-2 border-accent-400 animate-spin-reverse-slow" />
                                     </div>
-                                    <div className="flex gap-3 items-center">
-                                        <div className="px-3 py-1.5 rounded-full bg-accent-500/20 text-accent-400 border border-accent-500/50 text-sm font-medium">
-                                            AI-Generated Plan
+                                    <h3 className="text-xl font-display font-bold text-white tracking-widest uppercase animate-pulse">
+                                        Constructing Itinerary
+                                    </h3>
+                                    <div className="mt-4 flex flex-col gap-1 text-xs font-mono text-text-muted">
+                                        <span className="text-accent-400">&gt;&gt; Analyzing flight vectors...</span>
+                                        <span className="opacity-0 animate-fadeIn delay-700" style={{ animationDelay: '1s' }}>&gt;&gt; Locking hotel coordinates...</span>
+                                        <span className="opacity-0 animate-fadeIn delay-1000" style={{ animationDelay: '2s' }}>&gt;&gt; Synchronizing transit paths...</span>
+                                    </div>
+                                </motion.div>
+                            ) : showDashboard ? (
+                                <motion.div
+                                    key="dashboard"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.5 }}
+                                    className="max-w-4xl mx-auto space-y-8"
+                                >
+                                    {/* Dashboard Header */}
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <h2 className="text-3xl font-display font-bold text-white mb-2">
+                                                Trip to {travelContext.destination || 'Your Destination'}
+                                            </h2>
+                                            <p className="text-text-secondary">
+                                                {totalDays} Days • {selectedFlight?.airline} + {selectedHotel?.name}
+                                            </p>
                                         </div>
-                                        <button
-                                            onClick={handleSaveTrip}
-                                            disabled={isSavingTrip}
-                                            className="bg-white text-black hover:bg-orbit-200 font-bold py-1.5 px-4 rounded-full transition-all flex items-center gap-2 disabled:opacity-50 text-sm shadow-[0_0_10px_rgba(255,255,255,0.2)]"
-                                        >
-                                            {isSavingTrip ? (
-                                                <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                                            ) : (
-                                                <span>Save Trip</span>
-                                            )}
-                                        </button>
+                                        <div className="flex gap-3 items-center">
+                                            <button
+                                                onClick={triggerNewTripFlow}
+                                                className="bg-orbit-800 hover:bg-orbit-700 text-white font-medium py-1.5 px-4 rounded-full border border-orbit-600 transition-all flex items-center gap-1.5 text-sm"
+                                            >
+                                                <span>+ New Trip</span>
+                                            </button>
+                                            <button
+                                                onClick={handleSaveTrip}
+                                                disabled={isSavingTripUI}
+                                                className="bg-white text-black hover:bg-orbit-200 font-bold py-1.5 px-4 rounded-full transition-all flex items-center gap-2 disabled:opacity-50 text-sm shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                                            >
+                                                {isSavingTripUI ? (
+                                                    <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                                ) : (
+                                                    <span>Save Trip</span>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* City Navigation Map */}
-                                <CityMap events={activePlan} currentDay={currentDay} />
+                                    {/* City Navigation Map */}
+                                    <CityMap events={activePlan} currentDay={currentDay} />
 
-                                {/* Detailed Timeline */}
-                                <div>
-                                    <h3 className="text-xl font-display font-semibold text-white mb-6">Itinerary Details</h3>
-                                    <Timeline
-                                        events={activePlan}
-                                        currentDay={currentDay}
-                                        totalDays={totalDays}
-                                        onSelectDay={setCurrentDay}
-                                        onSwap={handleSwapTrigger}
-                                    />
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="empty"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="h-full flex flex-col items-center justify-center text-center opacity-30"
-                            >
-                                <div className="w-24 h-24 rounded-full border-2 border-dashed border-orbit-700 mb-6 animate-spin-slow" />
-                                <h3 className="text-2xl font-display font-bold text-white">Awaiting Mission Parameters</h3>
-                                <p className="max-w-md mt-2 text-text-muted">
-                                    Your live dashboard will activate once we finalize your travel vector.
-                                </p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            }
-        />
+                                    {/* Detailed Timeline */}
+                                    <div>
+                                        <h3 className="text-xl font-display font-semibold text-white mb-6">Itinerary Details</h3>
+                                        <Timeline
+                                            events={activePlan}
+                                            currentDay={currentDay}
+                                            totalDays={totalDays}
+                                            onSelectDay={setCurrentDay}
+                                            onSwap={handleSwapTrigger}
+                                        />
+                                    </div>
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="empty"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="h-full flex flex-col items-center justify-center text-center opacity-30"
+                                >
+                                    <div className="w-24 h-24 rounded-full border-2 border-dashed border-orbit-700 mb-6 animate-spin-slow" />
+                                    <h3 className="text-2xl font-display font-bold text-white">Awaiting Mission Parameters</h3>
+                                    <p className="max-w-md mt-2 text-text-muted">
+                                        Your live dashboard will activate once we finalize your travel vector.
+                                    </p>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                }
+            />
+            <NewTripModal />
+        </>
     );
 };
