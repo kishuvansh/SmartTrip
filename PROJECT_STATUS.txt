@@ -1,0 +1,61 @@
+SmartTrip (Orbit) - Project Status
+
+This file tracks major updates, architectural changes, and the current state of the project.
+
+--------------------------------------------------
+Current Status (July 18, 2026)
+--------------------------------------------------
+
+* Session Persistence & State Management
+  - Migrated all trip session state out of local React components and centralized it in a global Zustand store (tripStore.ts).
+  - Implemented seamless session recovery: logged-in users' active trips (chat, selections, itineraries, map states) now automatically persist in MongoDB and restore immediately on page refresh.
+  - Added automatic background debounced autosaving to prevent data loss while chatting.
+
+* Map & Itinerary Upgrades (CityMap.tsx + geocode.ts)
+  - Upgraded backend geocoding from free Nominatim to LocationIQ API for more accurate place-to-coordinate resolution, with Nominatim as an automatic fallback.
+  - Eliminated Groq-generated lat/lon from the map entirely — all markers now use API-geocoded coordinates; unresolved places fall back to the geocoded city center instead of random AI coordinates.
+  - Removed the 1-second-per-request Nominatim delay when LocationIQ key is present, significantly speeding up itinerary generation.
+  - Solved marker overlap issues on the map by grouping nearby activities and applying a circular visual offset so every stop is clearly visible.
+  - Added dynamic, colored route lines on the map connecting the itinerary stops chronologically, with distinct colors for each day.
+
+* Security & Architecture Improvements
+  - Moved Groq AI API keys and all AI processing logic entirely to the server-side (aiController.ts), eliminating critical security risks from exposing keys in the frontend bundle.
+
+* Real Flight & Hotel Data Integration (Duffel API)
+  - Implemented backend `duffelService.ts` to search real flights and accommodations via Duffel's sandbox API.
+  - Resolved cross-boundary TypeScript compiling issues by introducing a dedicated local `types/options.ts` definition on the backend.
+  - Set up a 15-minute in-memory caching system with lazy-eviction on reads to optimize search speeds.
+  - Maintained safe, robust fallback handlers to Groq-generated options in case of API failure or missing city mappings.
+  - Cleaned up all obsolete Kiwi API service code, environment configs, and imports.
+
+--------------------------------------------------
+Update (July 22, 2026)
+--------------------------------------------------
+
+* Dynamic Itinerary Day Count Fix
+  - Fixed bug where itinerary was always hardcoded to 4 days regardless of actual travel duration.
+  - Backend extractContext AI prompt now also extracts numDays from the user's conversation (date range, explicit mention, etc.).
+  - Frontend now stores numDays in travelContext (Zustand store) and passes it to generateItinerary instead of a hardcoded 4.
+  - numDays is persisted/restored across sessions via MongoDB.
+  - Fallback default is 3 days if AI cannot determine duration.
+  - Max itinerary length capped at 7 days to keep plans reasonable.
+
+* New Trip Session Button & Save Prompt Modal
+  - Added prominent "+ New Trip" action buttons across the UI (Sidebar, Chat Panel Header, and Dashboard Header).
+  - Implemented trigger flow (`triggerNewTripFlow`) that detects active ongoing trip content before starting a new chat session.
+  - Created high-tech glassmorphism confirmation modal (`NewTripModal.tsx`) asking the user whether to "Save & Start New Trip" or "Discard & Start New Trip".
+  - Cleanly deletes the backend active trip MongoDB record (`DELETE /trips/active`) and resets Zustand session state to fresh initial chat on new trip.
+* Deployment Readiness Audit & Hygiene Pass
+  - Verified secrets security: all credentials/keys are isolated in environment variables, no hardcoded secrets found in codebase.
+  - Created `frontend/.env.example` documenting all client env vars (`VITE_*`).
+  - Added `GET /health` route returning `{ status: "ok" }` for uptime monitoring and health checks.
+  - Updated `vite.config.ts` base path to root `/` (compatible with Vercel, Netlify, Render).
+  - Verified backend `PORT` and `CORS` configuration are dynamically driven by environment variables (`PORT`, `FRONTEND_URL`).
+  - Full build verification passed cleanly for both frontend (`npm run build`) and backend (`tsc`).
+
+* Dead Code Cleanup
+  - Deleted `MapView.tsx` — legacy map component, fully superseded by `CityMap.tsx`. Never imported anywhere.
+  - Deleted `IsometricMap.tsx` — legacy isometric map prototype, fully superseded by `CityMap.tsx`. Never imported anywhere.
+  - Deleted `src/lib/search.ts` — leftover client-side Tavily web search utility from early prototype. Never imported anywhere (would have exposed `VITE_TAVILY_API_KEY` as a frontend secret, a security concern).
+  - Frontend build confirmed clean after deletions: 0 errors, output size slightly reduced.
+

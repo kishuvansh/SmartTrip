@@ -30,3 +30,8 @@ dist-ssr/
 # Environment files
 .env
 **/.env
+
+
+PROJECT_STATUS.txt
+.agents
+
