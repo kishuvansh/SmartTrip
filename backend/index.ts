@@ -32,16 +32,16 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, postman)
     if (!origin) return callback(null, true);
-    
+
     // Check if origin is in the allowed list or is a localhost/127.0.0.1 origin
     if (
-      allowedOrigins.includes(origin) || 
-      /^http:\/\/localhost:\d+$/.test(origin) || 
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/localhost:\d+$/.test(origin) ||
       /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
     ) {
       return callback(null, true);
     }
-    
+
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -72,20 +72,20 @@ app.use('/api/ai', aiRoutes);
 // Error Handling Middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled server error:', err);
-  
+
   // Ensure CORS headers are attached on error responses
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
-  
+
   res.status(err.status || 500).json({
     message: err.message || 'Internal Server Error',
     error: process.env.NODE_ENV === 'development' ? err : {}
   });
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
