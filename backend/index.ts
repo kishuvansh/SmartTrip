@@ -28,7 +28,7 @@ const allowedOrigins = [
   'http://127.0.0.1:5175',
 ].filter(Boolean) as string[];
 
-app.use(cors({
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, postman)
     if (!origin) return callback(null, true);
@@ -42,10 +42,12 @@ app.use(cors({
       return callback(null, true);
     }
 
-    return callback(new Error('Not allowed by CORS'));
+    return callback(null, false);
   },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Configure helmet to allow cross-origin resource sharing
 app.use(helmet({
@@ -69,23 +71,27 @@ app.use('/api/preferences', preferencesRoutes);
 app.use('/api/trips', tripsRoutes);
 app.use('/api/ai', aiRoutes);
 
-// Error Handling Middleware
+// Global Error Handling Middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled server error:', err);
+  console.error('[SERVER ERROR] Unhandled exception:', err);
 
-  // Ensure CORS headers are attached on error responses
+  // Ensure CORS headers are attached on error responses so frontend receives readable error JSON
   const origin = req.headers.origin;
-  if (origin) {
+  if (origin && (allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err : {}
+  const statusCode = err.status || err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    error: message
   });
 });
 
 app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`[CORS] FRONTEND_URL env var: "${process.env.FRONTEND_URL || 'NOT SET'}"`);
+  console.log(`[CORS] Allowed origins:`, allowedOrigins);
 });
