@@ -1,43 +1,109 @@
 import { Request, Response } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { AuthRequest } from '../middleware/auth';
 import { geocodePlace } from '../services/geocode';
 import { searchFlights as searchDuffelFlights, searchHotels as searchDuffelHotels } from '../services/duffelService';
-
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.1-8b-instant';
 
 interface AIChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
-const callGroq = async (messages: AIChatMessage[], isJson: boolean = false): Promise<string> => {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GROQ_API_KEY in environment variables");
+const getAIConfig = () => {
+  dotenv.config();
+  const isGemini = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) || process.env.AI_PROVIDER === 'gemini';
+
+  if (isGemini) {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      throw new Error("Missing GEMINI_API_KEY in environment variables");
+    }
+    return {
+      provider: 'Gemini',
+      url: process.env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      apiKey,
+      model: process.env.GEMINI_MODEL || process.env.AI_MODEL || 'gemini-3.8-flash',
+    };
   }
 
-  const response = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: 0.7,
-      response_format: isJson ? { type: "json_object" } : undefined,
-    }),
-  });
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing GROQ_API_KEY (or GEMINI_API_KEY) in environment variables");
+  }
+
+  return {
+    provider: 'Groq',
+    url: process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1/chat/completions',
+    apiKey,
+    model: process.env.GROQ_MODEL || process.env.AI_MODEL || 'openai/gpt-oss-120b',
+  };
+};
+
+const callAI = async (messages: AIChatMessage[], isJson: boolean = false): Promise<string> => {
+  const { provider, url, apiKey, model } = getAIConfig();
+  console.log(`[AI Engine] Routing request via ${provider} with model: ${model}`);
+
+  const sendRequest = async (useJson: boolean) => {
+    return await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.5,
+        response_format: useJson ? { type: "json_object" } : undefined,
+      }),
+    });
+  };
+
+  let response = await sendRequest(isJson);
+
+  // If strict JSON schema causes HTTP 400 (Failed to generate JSON), retry once without
+  // strict response_format constraint so the response can be captured and safeParseJSON can extract it.
+  if (!response.ok && isJson && response.status === 400) {
+    const errorData = await response.clone().json().catch(() => ({}));
+    if (errorData?.error?.message?.includes("Failed to generate JSON")) {
+      console.warn(`[${provider} Warning] Strict JSON mode failed; retrying without response_format constraint...`);
+      response = await sendRequest(false);
+    }
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(`Groq Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+    const detail = errorData.error?.failed_generation
+      ? `${errorData.error.message} (failed_generation: ${errorData.error.failed_generation})`
+      : errorData.error?.message || response.statusText;
+    throw new Error(`${provider} Error: ${response.status} - ${detail}`);
   }
 
   const data: any = await response.json();
   return data.choices[0].message.content;
+};
+
+const callGroq = callAI;
+
+const safeParseJSON = (raw: string): any => {
+  const clean = raw.replace(/```(?:json)?\s*([\s\S]*?)\s*```/gi, '$1').trim();
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    const firstBracket = clean.indexOf('[');
+    const lastBracket = clean.lastIndexOf(']');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      return JSON.parse(clean.substring(firstBrace, lastBrace + 1));
+    } else if (firstBracket !== -1 && lastBracket !== -1) {
+      return JSON.parse(clean.substring(firstBracket, lastBracket + 1));
+    }
+    throw e;
+  }
 };
 
 /**
@@ -46,23 +112,27 @@ const callGroq = async (messages: AIChatMessage[], isJson: boolean = false): Pro
 export const chatResponse = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { messages } = req.body;
-    
+
     const systemPrompt: AIChatMessage = {
       role: 'system',
-      content: `You are SmartTrip, a futuristic AI travel assistant. Be short, punchy, and cool.
+      content: `You are SmartTrip, a futuristic AI travel assistant. Be short, punchy, and helpful.
 Your job is to gather: destination, origin city, travel dates, number of travelers, and trip vibe.
-Ask for ONE piece of info at a time. Don't repeat questions already answered.
+Ask for ONE piece of info at a time. Do not repeat questions already answered.
 
-Once you have ALL of: origin, destination, dates, and vibe — respond with action "show_flights".
-Otherwise respond with action "ask".
+Once you have gathered origin, destination, dates, and vibe, set action to "show_flights".
+Otherwise, set action to "ask".
 
-ALWAYS reply as valid JSON: {"text": "your message", "action": "ask" or "show_flights"}
-Do NOT wrap in markdown code blocks.`
+You must respond ONLY with a valid JSON object matching this schema:
+{
+  "text": "your response to the user here",
+  "action": "ask"
+}
+Valid values for "action" are either "ask" or "show_flights".
+Do not include markdown fences, comments, or any extra text outside the JSON object.`
     };
 
     const raw = await callGroq([systemPrompt, ...messages], true);
-    const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const result = JSON.parse(clean);
+    const result = safeParseJSON(raw);
     res.json(result);
   } catch (error: any) {
     console.error("AI Chat Error:", error);
@@ -79,15 +149,20 @@ export const extractContext = async (req: AuthRequest, res: Response): Promise<v
 
     const systemPrompt: AIChatMessage = {
       role: 'system',
-      content: `Extract travel details from this conversation. Return JSON with:
-{"origin": "city name", "destination": "city name", "dates": "date range or description", "vibe": "trip vibe/style", "numDays": number}
-"numDays" must be the total number of days for the trip (integer). Calculate it from the date range if possible. If the user said something vague like "next week" or "5 days", use that number. If completely unclear, default to 3.
-If any field is unclear, make a reasonable guess based on context. ONLY return valid JSON.`
+      content: `Extract travel details from this conversation. You must respond ONLY with a valid JSON object matching this schema:
+{
+  "origin": "city name",
+  "destination": "city name",
+  "dates": "date range or description",
+  "vibe": "trip vibe or style",
+  "numDays": 3
+}
+"numDays" must be the total number of days for the trip as an integer. Calculate it from the date range if possible. If the user said something vague like "next week" or "5 days", use that number. If completely unclear, default to 3.
+If any field is unclear, make a reasonable guess based on context. Return ONLY the JSON object with no additional text or markdown fences.`
     };
 
     const raw = await callGroq([systemPrompt, ...messages], true);
-    const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const result = JSON.parse(clean);
+    const result = safeParseJSON(raw);
     res.json(result);
   } catch (error: any) {
     console.error("AI Extract Context Error:", error);
@@ -104,12 +179,12 @@ export const generateOptions = async (req: AuthRequest, res: Response): Promise<
 
     if (type === 'flights') {
       const { origin, destination, dates } = req.body;
-      
+
       try {
         const liveFlights = await searchDuffelFlights(origin, destination, dates);
         if (liveFlights && liveFlights.length > 0) {
-            res.json(liveFlights);
-            return;
+          res.json(liveFlights);
+          return;
         }
       } catch (e: any) {
         console.warn("[Duffel Fallback] Flights failed. Falling back to Groq.", e.message);
@@ -138,12 +213,15 @@ Reply ONLY with the JSON array, no other text. No markdown.`
       ];
 
       const raw = await callGroq(prompt, false);
-      const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-      const arrMatch = clean.match(/\[[\s\S]*\]/);
-      if (!arrMatch) {
+      const parsed = safeParseJSON(raw);
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : (parsed.flights || parsed.options || Object.values(parsed).find(Array.isArray) || []);
+
+      if (!Array.isArray(arr) || arr.length === 0) {
         throw new Error("Could not parse flights JSON from model response");
       }
-      res.json(JSON.parse(arrMatch[0]));
+      res.json(arr);
 
     } else if (type === 'hotels') {
       const { destination, vibe } = req.body;
@@ -153,8 +231,8 @@ Reply ONLY with the JSON array, no other text. No markdown.`
         if (geo) {
           const liveHotels = await searchDuffelHotels(geo.lat, geo.lon, destination);
           if (liveHotels && liveHotels.length > 0) {
-              res.json(liveHotels);
-              return;
+            res.json(liveHotels);
+            return;
           }
         }
       } catch (e: any) {
@@ -164,7 +242,7 @@ Reply ONLY with the JSON array, no other text. No markdown.`
       const prompt: AIChatMessage[] = [
         {
           role: 'system',
-          content: `Generate exactly 3 realistic hotel options as a JSON array.
+          content: `Generate exactly 4 realistic hotel options as a JSON array.
 Each hotel object must have these exact fields:
 - "id": unique string like "h1", "h2", "h3"
 - "name": real or realistic hotel name for the destination
@@ -184,12 +262,15 @@ Make the hotels match the vibe. Reply ONLY with the JSON array, no other text. N
       ];
 
       const raw = await callGroq(prompt, false);
-      const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-      const arrMatch = clean.match(/\[[\s\S]*\]/);
-      if (!arrMatch) {
+      const parsed = safeParseJSON(raw);
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : (parsed.hotels || parsed.options || Object.values(parsed).find(Array.isArray) || []);
+
+      if (!Array.isArray(arr) || arr.length === 0) {
         throw new Error("Could not parse hotels JSON from model response");
       }
-      res.json(JSON.parse(arrMatch[0]));
+      res.json(arr);
     } else {
       res.status(400).json({ message: "Invalid options type requested" });
     }
@@ -229,8 +310,8 @@ Rules:
 - Last day must end with return flight from ${destination} to ${origin}
 - Include 3-5 events per day
 - Activities should match a "${vibe}" trip vibe
-- Use the selected flight: ${flight.airline} (${flight.path}, ${flight.time})
-- Use the selected hotel: ${hotel.name} at ${hotel.location}
+- Use the selected flight: ${flight?.airline || 'Flight'} (${flight?.path || ''}, ${flight?.time || ''})
+- Use the selected hotel: ${hotel?.name || 'Hotel'} at ${hotel?.location || ''}
 - Lat/lon MUST be real coordinates for actual places in/around ${destination}
 
 Reply ONLY with the JSON object. No markdown. No extra text.`
@@ -242,41 +323,54 @@ Reply ONLY with the JSON object. No markdown. No extra text.`
     ];
 
     const raw = await callGroq(prompt, true);
-    const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    
+    const parsed = safeParseJSON(raw);
+
     // Pre-geocode the destination city center as an API-based fallback
     const cityGeo = await geocodePlace(destination, "");
-    
-    // Normalize: ensure lat/lon are converted to the coordinates format used by the map
-    const result: Record<number, any[]> = {};
-    for (const [dayStr, events] of Object.entries(parsed)) {
-      const dayNum = parseInt(dayStr);
-      const processedEvents = [];
-      
-      for (const e of (events as any[])) {
-        // Try to geocode the real location via LocationIQ/Nominatim
-        const geo = await geocodePlace(e.title, destination);
-        
-        // Use geocoded coordinate if found; otherwise, fall back to city center (API geocoded) rather than Groq random lat/lon
-        const lat = geo ? geo.lat : (cityGeo ? cityGeo.lat : undefined);
-        const lon = geo ? geo.lon : (cityGeo ? cityGeo.lon : undefined);
-        
-        processedEvents.push({
-          id: e.id,
-          type: e.type,
-          title: e.title,
-          subtitle: e.subtitle,
-          time: e.time,
-          duration: e.duration,
-          price: e.price,
-          badges: e.badges,
-          aiReasoning: e.aiReasoning,
-          coordinates: (lat && lon) ? { lat, lon } : undefined
-        });
+
+    // Handle possible top-level wrappers like { "itinerary": { "1": [...] } } or { "days": { ... } }
+    let daysObj = parsed;
+    if (parsed && typeof parsed === 'object' && !parsed["1"] && !parsed[1]) {
+      const wrapperKey = Object.keys(parsed).find(
+        k => parsed[k] && typeof parsed[k] === 'object' && (parsed[k]["1"] || parsed[k][1])
+      );
+      if (wrapperKey) {
+        daysObj = parsed[wrapperKey];
       }
-      
-      result[dayNum] = processedEvents;
+    }
+
+    const result: Record<number, any[]> = {};
+    if (daysObj && typeof daysObj === 'object') {
+      for (const [dayStr, events] of Object.entries(daysObj)) {
+        const dayNum = parseInt(dayStr, 10);
+        if (isNaN(dayNum) || !Array.isArray(events)) continue;
+
+        const processedEvents = [];
+        for (const e of events) {
+          if (!e || typeof e !== 'object') continue;
+
+          // Try to geocode the real location via LocationIQ/Nominatim
+          const geo = e.title ? await geocodePlace(e.title, destination) : null;
+
+          const lat = geo ? geo.lat : (cityGeo ? cityGeo.lat : (typeof e.lat === 'number' ? e.lat : undefined));
+          const lon = geo ? geo.lon : (cityGeo ? cityGeo.lon : (typeof e.lon === 'number' ? e.lon : undefined));
+
+          processedEvents.push({
+            id: e.id || `${dayNum}-${processedEvents.length + 1}`,
+            type: e.type || 'activity',
+            title: e.title || 'Activity',
+            subtitle: e.subtitle || '',
+            time: e.time || '12:00 PM',
+            duration: e.duration,
+            price: e.price,
+            badges: Array.isArray(e.badges) ? e.badges : [],
+            aiReasoning: e.aiReasoning,
+            coordinates: (lat !== undefined && lon !== undefined) ? { lat, lon } : undefined
+          });
+        }
+
+        result[dayNum] = processedEvents;
+      }
     }
 
     res.json(result);

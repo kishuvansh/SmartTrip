@@ -45,7 +45,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     const user = await User.findOneAndUpdate(
       { firebaseUid },
       { $set: updateData },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!user) {
@@ -75,7 +75,7 @@ export const uploadPhoto = async (req: AuthRequest, res: Response): Promise<void
     const user = await User.findOneAndUpdate(
       { firebaseUid },
       { $set: { photoUrl } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!user) {

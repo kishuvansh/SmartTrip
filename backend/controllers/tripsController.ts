@@ -135,7 +135,7 @@ export const upsertActiveTrip = async (req: AuthRequest, res: Response): Promise
                 $set: payload,
                 $setOnInsert: { userId: user._id, firebaseUid } 
             },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
+            { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
         );
 
         res.json(updatedTrip);

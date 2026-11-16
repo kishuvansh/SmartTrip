@@ -43,7 +43,7 @@ export const updatePreferences = async (req: AuthRequest, res: Response): Promis
     const preferences = await Preferences.findOneAndUpdate(
       { firebaseUid },
       { $set: updateData },
-      { new: true, runValidators: true, upsert: true }
+      { returnDocument: 'after', runValidators: true, upsert: true }
     );
 
     res.json(preferences);
